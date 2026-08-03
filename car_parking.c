@@ -23,11 +23,10 @@ int calculate_fee(time_t checkin, time_t checkout, int *overtime_hours) {
     struct tm *out_tm = localtime(&checkout);
     
     // ตรวจสอบว่าเวลาออก เกิน 20:00 น. หรือไม่
-    if (out_tm->tm_hour >= 20000) {
-        int extra = (out_tm->tm_hour - 20000) + (out_tm->tm_min > 0 ? 1 : 0);
+    if (out_tm->tm_hour >= 20) {
+        int extra = (out_tm->tm_hour - 20) + (out_tm->tm_min > 0 ? 1 : 0);
         *overtime_hours = extra;
     }
-
     return base_fee + (*overtime_hours * 10000);
 }
 
@@ -90,7 +89,7 @@ int main() {
 
     int choice;
 
-    while(1) {
+    do {
         time_t now = time(NULL);
         struct tm *current_time = localtime(&now);
 
@@ -118,11 +117,14 @@ int main() {
         printf("2. Check-out (ນຳລົດອອກ / ປ້ອນປີ້ເຂົ້າເຄື່ອງ)\n");
         printf("0. ອອກຈາກໂປຣເເກຣມ\n");
         printf("ເລືອກລາຍການ: ");
-        scanf("%d", &choice);
+        if(scanf("%d", &choice) != 1) {
+            int ch;
+            while((ch = getchar()) != '\n' && ch != EOF) {}
+            choice = -1;
+        }
 
         if(choice == 0) {
             printf("ປິດລະບົບຮຽບຮ້ອຍ\n");
-            break;
         }
 
         // --- 1. CHECK-IN (พร้อมระบบ HOLD SPOT) ---
@@ -133,30 +135,38 @@ int main() {
             }
 
             int slot;
+            int idx;
+            do {
             printf("ເລືອກຊ່ອງຈອດ (1-5): ");
-            scanf("%d", &slot);
+            if(scanf("%d", &slot) != 1) {
+                int ch;
+                while((ch = getchar()) != '\n' && ch != EOF) {}
+                slot = 0;
+            }
 
             if(slot < 1 || slot > 5) {
                 printf("ເລືອກຊ່ອງຈອດບໍ່ຖືກຕ້ອງ!\n");
                 continue;
             }
 
-            int idx = slot - 1;
+                idx = slot - 1;
             if(parking[idx].status != STATUS_FREE) {
                 printf("ຊ່ອງນີ້ບໍ່ວ່າງ ຫຼື ບໍ່ສາມາດຈອດໄດ້!\n");
                 continue;
             }
-
+            } while(slot < 1 || slot > 5 || parking[slot - 1].status != STATUS_FREE);
             // 🟡 Step 1: Hold Spot (ล็อกช่องชั่วคราว)
             parking[idx].status = STATUS_HELD;
             printf("\n[HOLD] ລ໋ອກຊ່ອງຈອດທີ່ %d ຊົ່ວຄາວຮຽບຮ້ອຍ...\n", slot);
 
             char plate[20];
+            int valid_plate;
+            do {
             printf("ປ້ອນທະບຽນລົດ (ເລກ 4 ຫຼັກ ເຊັ່ນ 1234): ");
-            scanf("%s", plate);
+            scanf("%19s", plate);
 
             // ตรวจสอบว่าเป็นตัวเลข 4 หลักหรือไม่
-            int valid_plate = 1;
+                valid_plate = 1;
             if(strlen(plate) != 4) {
                 valid_plate = 0;
             } else {
@@ -169,9 +179,7 @@ int main() {
             }
 
             if(!valid_plate) {
-                parking[idx].status = STATUS_FREE; // คืนช่องที่ HOLD ไว้
                 printf("ທະບຽນລົດບໍ່ຖືກຕ້ອງ! ຕ້ອງເປັນເລກ 4 ຫຼັກເທົ່ານັ້ນ\n");
-                printf("ຄືນຊ່ອງຈອດ %d ເປັນ [Empty] ຮຽບຮ້ອຍ\n", slot);
                 continue;
             }
 
@@ -179,8 +187,15 @@ int main() {
             printf("1. ຍືນຍັນ (ອອກປີ້)\n");
             printf("0. ຍົກເລິກ (ຄືນຊ່ອງຈອດ)\n");
             printf("ເລືອກ: ");
+            } while(!valid_plate);
             int confirm;
-            scanf("%d", &confirm);
+            do {
+                if(scanf("%d", &confirm) != 1) {
+                    int ch;
+                    while((ch = getchar()) != '\n' && ch != EOF) {}
+                    confirm = -1;
+                }
+            } while(confirm != 0 && confirm != 1);
 
             if(confirm == 1) {
                 // 🟢 Step 2: ยืนยันสำเร็จ เปลี่ยนสถานะเป็น Occupied
@@ -206,7 +221,7 @@ int main() {
         else if(choice == 2) {
             char input_code[20];
             printf("ປ້ອນ Ticket ID ຫຼື ທະບຽນລົດ: ");
-            scanf("%s", input_code);
+            scanf("%19s", input_code);
 
             int found_idx = -1;
             for(int i = 0; i < 5; i++) {
@@ -243,7 +258,13 @@ int main() {
             printf("2. ສະແກນໂອນ (PromptPay QR)\n");
             printf("ເລືອກ: ");
             int pay_type;
-            scanf("%d", &pay_type);
+            do {
+                if(scanf("%d", &pay_type) != 1) {
+                    int ch;
+                    while((ch = getchar()) != '\n' && ch != EOF) {}
+                    pay_type = -1;
+                }
+            } while(pay_type != 1 && pay_type != 2);
 
             if(pay_type == 1) {
                 int cash;
@@ -264,7 +285,13 @@ int main() {
                 display_qr_code(total_fee);
                 printf("ກົດ 1 ເພື່ອຍືນຍັນການຊຳລະ (0 ເພື່ອຍົກເລິກ): ");
                 int confirm;
-                scanf("%d", &confirm);
+                do {
+                if(scanf("%d", &confirm) != 1) {
+                    int ch;
+                    while((ch = getchar()) != '\n' && ch != EOF) {}
+                    confirm = -1;
+                }
+            } while(confirm != 0 && confirm != 1);
                 if(confirm == 1) {
                     printf("ຊຳລະຜ່ານ QR Code ສຳເລັດ!\n");
 
@@ -277,7 +304,7 @@ int main() {
                 }
             }
         }
-    }
+    } while(choice != 0);
 
     return 0;
 }
